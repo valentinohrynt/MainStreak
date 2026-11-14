@@ -27,6 +27,27 @@ Open http://127.0.0.1:8765 in the laptop's browser. Add friends, view who is pen
 
 The dashboard uses only Python's standard library and binds to 127.0.0.1 (localhost), not the public network. Do not change this to 0.0.0.0 or expose the port to the internet.
 
+## TikTok browser helper (supervised)
+
+Run:
+
+    python3 browser_assist.py
+
+For each friend who is still pending today, MainStreak opens that person's TikTok profile in your default browser and copies their saved message template to the clipboard. In the TikTok tab:
+
+1. Sign in manually if needed.
+2. Select **Message** on the profile (if TikTok allows messaging that account).
+3. Paste the copied template and send it yourself.
+4. Return to the terminal and type `s` to record the send. Press Enter to skip, or `q` to stop.
+
+For automatic clipboard copying on Ubuntu, install one clipboard utility:
+
+    sudo apt install -y wl-clipboard
+
+On an X11 desktop, `xclip` or `xsel` can be used instead. If no clipboard utility is installed, the helper prints the message so you can copy it manually.
+
+The helper uses your normal default browser and does not read or store your TikTok password, cookies, or session. It does not click the Message button or send the DM. A profile may not show a Message button if the recipient's privacy settings or TikTok's rules do not allow the conversation.
+
 ## Command-line usage
 
 Add or update friends:
@@ -75,5 +96,6 @@ Cron writes the daily pending-friend report to mainstreak.log. It does not send 
 - [x] Daily due list and send confirmations
 - [x] SQLite persistence
 - [x] Local browser dashboard
+- [x] Browser helper to open friend profiles and copy templates (manual send confirmation)
 - [ ] Optional Telegram reminder
 - [ ] Official TikTok messaging integration, only if the account and use case are approved by TikTok
