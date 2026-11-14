@@ -1,101 +1,105 @@
 # MainStreak
 
-A lightweight daily TikTok streak tracker for Ubuntu. It stores friends, per-friend message templates, and daily send confirmations in SQLite. It includes both a command-line interface and a local browser dashboard.
-
-> Important: This project does not log in to TikTok or send DMs. TikTok does not provide unrestricted personal-account DM automation. The app tracks who is due and records confirmations after you send messages yourself. Do not add password storage, CAPTCHA bypasses, private API calls, or other access-control workarounds.
+A lightweight daily TikTok streak helper for Ubuntu. It stores friends, per-friend message templates, and daily send confirmations in SQLite. It includes a CLI, local dashboard, supervised browser helper, and an optional Playwright sender for TikTok Web.
 
 ## Requirements
 
-- Ubuntu 22.04+ (also works on most recent Debian-based distributions)
+- Ubuntu 22.04+ (also works on recent Debian-based distributions)
 - Python 3.10+
-- No third-party Python packages
+- Chromium installed by Playwright for the optional browser sender
 
 ## Install
 
     sudo apt update
-    sudo apt install -y python3 git
+    sudo apt install -y python3 python3-venv git
     git clone https://github.com/valentinohrynt/MainStreak.git
     cd MainStreak
+    python3 -m venv .venv
+    . .venv/bin/activate
+    pip install -r requirements.txt
+    python -m playwright install chromium
 
-## Browser dashboard
+If Playwright reports missing system libraries, install its OS dependencies with:
+
+    sudo .venv/bin/python -m playwright install-deps chromium
+
+## Add friends
+
+    .venv/bin/python main.py add --name "Alex" --username "alex123" --message "streak 🔥"
+    .venv/bin/python main.py add --name "Sam" --username "sam456" --message "daily streak check!"
+
+The username is the TikTok handle without @. Each friend can have a different message. Friend data and send dates are stored in the local SQLite database `mainstreak.db`.
+
+## Optional TikTok Web automation
+
+This uses a regular Playwright-controlled Chromium browser and TikTok's visible web interface. It does not use TikTok private endpoints, stealth plugins, browser fingerprint spoofing, CAPTCHA bypasses, or credential extraction.
+
+**Platform note:** TikTok may restrict automated interactions under its terms and may show security checks or change its interface. Use only for friends who expect these messages. If TikTok presents a security challenge or blocks the action, stop; do not try to bypass it. UI automation is best-effort and is not an official TikTok integration.
+
+### 1. Sign in once
+
+    .venv/bin/python tiktok_sender.py --login
+
+A normal Chromium window opens. Sign in to TikTok yourself, then return to the terminal and press Enter. The browser profile is saved in `browser-profile/` on this machine. It contains your authenticated session: do not share it, upload it, or commit it to Git.
+
+### 2. Test a send while watching the browser
+
+    .venv/bin/python tiktok_sender.py --send
+
+The script processes friends who have not been recorded as sent today. It opens each TikTok profile, uses the visible Message control, fills the message composer, and clicks Send. A friend is marked for today only after the visible composer clears. This is a UI confirmation, not proof that the recipient received or read the message.
+
+If a recipient cannot be messaged, the page layout changes, or a browser error occurs, that friend remains pending and the script reports the failure. Review the output before retrying. Do not run multiple sender instances at the same time.
+
+### 3. Run headless or schedule once per day
+
+After a successful visible test, a headless run can be used for a scheduled job:
+
+    .venv/bin/python tiktok_sender.py --send --headless
+
+To schedule it daily at 20:30, set the machine timezone and edit your crontab:
+
+    sudo timedatectl set-timezone Asia/Jakarta
+    crontab -e
+
+Add this line, replacing `YOUR_USERNAME` with your Linux username:
+
+    30 20 * * * cd /home/YOUR_USERNAME/MainStreak && /home/YOUR_USERNAME/MainStreak/.venv/bin/python tiktok_sender.py --send --headless >> tiktok_sender.log 2>&1
+
+Cron only runs while the laptop is powered on. If it is asleep or powered off at 20:30, the job will not run at that time. Keep the machine awake and connected to the internet. A headless run may fail if TikTok requires a fresh login or interactive verification; run `--login` again manually when needed.
+
+The sender uses one Chromium process and a small local SQLite database. On an 8 GB machine, close other browser windows during scheduled sending if memory is constrained.
+
+## Local dashboard
 
 Start the dashboard:
 
-    python3 webapp.py
+    .venv/bin/python webapp.py
 
-Open http://127.0.0.1:8765 in the laptop's browser. Add friends, view who is pending, copy the message template, and record a send confirmation after sending the DM manually. Stop the dashboard with Ctrl+C.
+Open http://127.0.0.1:8765 in your browser. Add friends, view who is pending, and record manual confirmations. The dashboard itself does not send TikTok messages.
 
-The dashboard uses only Python's standard library and binds to 127.0.0.1 (localhost), not the public network. Do not change this to 0.0.0.0 or expose the port to the internet.
+The dashboard binds only to localhost. Do not change this to 0.0.0.0 or expose the port to the internet.
 
-## TikTok browser helper (supervised)
+## Supervised browser helper
 
-Run:
+For manual sending without Playwright:
 
-    python3 browser_assist.py
+    .venv/bin/python browser_assist.py
 
-For each friend who is still pending today, MainStreak opens that person's TikTok profile in your default browser and copies their saved message template to the clipboard. In the TikTok tab:
-
-1. Sign in manually if needed.
-2. Select **Message** on the profile (if TikTok allows messaging that account).
-3. Paste the copied template and send it yourself.
-4. Return to the terminal and type `s` to record the send. Press Enter to skip, or `q` to stop.
-
-For automatic clipboard copying on Ubuntu, install one clipboard utility:
+For each pending friend, MainStreak opens their profile and copies the saved template to the clipboard. You click Message, paste and send it yourself, then type `s` in the terminal to record the confirmation. Install `wl-clipboard` for automatic clipboard copying on Wayland:
 
     sudo apt install -y wl-clipboard
 
-On an X11 desktop, `xclip` or `xsel` can be used instead. If no clipboard utility is installed, the helper prints the message so you can copy it manually.
-
-The helper uses your normal default browser and does not read or store your TikTok password, cookies, or session. It does not click the Message button or send the DM. A profile may not show a Message button if the recipient's privacy settings or TikTok's rules do not allow the conversation.
-
 ## Command-line usage
 
-Add or update friends:
-
-    python3 main.py add --name "Alex" --username "alex123" --message "streak 🔥"
-    python3 main.py add --name "Sam" --username "sam456" --message "daily streak check!"
-
-See who is due:
-
-    python3 main.py due
-
-After sending a DM manually in TikTok, record it:
-
-    python3 main.py mark --name "Alex"
-
-List tracked friends:
-
-    python3 main.py list
-
-Remove a friend:
-
-    python3 main.py remove --name "Alex"
-
-## Daily report at 20:30
-
-Set the server timezone:
-
-    sudo timedatectl set-timezone Asia/Jakarta
-
-Edit your crontab with crontab -e and add this line, replacing YOUR_USERNAME with your Linux username:
-
-    30 20 * * * cd /home/YOUR_USERNAME/MainStreak && /usr/bin/python3 main.py due >> mainstreak.log 2>&1
-
-Cron writes the daily pending-friend report to mainstreak.log. It does not send TikTok messages.
+    .venv/bin/python main.py due
+    .venv/bin/python main.py list
+    .venv/bin/python main.py mark --name "Alex"
+    .venv/bin/python main.py remove --name "Alex"
 
 ## Data and privacy
 
-- SQLite data is stored locally in mainstreak.db.
-- Do not commit the database, browser profiles, session cookies, or credentials.
-- This repository intentionally contains no TikTok credentials or unofficial API integration.
-- Keep the dashboard on localhost; it is not designed for public hosting.
-
-## Roadmap
-
-- [x] Local friend list and message templates
-- [x] Daily due list and send confirmations
-- [x] SQLite persistence
-- [x] Local browser dashboard
-- [x] Browser helper to open friend profiles and copy templates (manual send confirmation)
-- [ ] Optional Telegram reminder
-- [ ] Official TikTok messaging integration, only if the account and use case are approved by TikTok
+- SQLite data is stored locally in `mainstreak.db`.
+- The Playwright browser profile is stored in `browser-profile/` and contains your logged-in session.
+- Both paths are ignored by Git. Never commit the database, browser profile, cookies, passwords, or session data.
+- The dashboard listens only on `127.0.0.1`.
+- The sender does not attempt to defeat TikTok security controls. If the normal web interface blocks an action, leave the friend pending and resolve it manually.
